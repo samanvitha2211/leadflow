@@ -13,10 +13,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
-import { Inbox, Plus } from "lucide-react";
+import { Inbox } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { UserContactForm } from "./components/UserContactForm";
 
 interface UserLead {
   id: string;
@@ -70,15 +71,11 @@ export default function UserDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">My Inquiries</h1>
-          <p className="text-slate-400 mt-1">Track the status of your submitted requests</p>
+          <p className="text-slate-400 mt-1">Submit new requests and track their status below</p>
         </div>
-        <Link href="/contact">
-          <Button className="btn-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            New Inquiry
-          </Button>
-        </Link>
       </div>
+
+      <UserContactForm onSuccess={fetchData} />
 
       <div className="glass-panel rounded-2xl border border-white/10 overflow-hidden flex flex-col min-h-[500px]">
         <Table>
@@ -138,12 +135,7 @@ export default function UserDashboard() {
                   <div className="flex flex-col items-center justify-center text-slate-400">
                     <Inbox className="w-12 h-12 mb-4 opacity-50 text-cyan-400" />
                     <p className="text-lg font-medium text-white mb-1">No inquiries yet</p>
-                    <p className="text-sm mb-4">You haven't submitted any requests.</p>
-                    <Link href="/contact">
-                      <Button variant="outline" className="border-white/10 text-white">
-                        Submit your first inquiry
-                      </Button>
-                    </Link>
+                    <p className="text-sm mb-4">Submit a request using the form above to get started.</p>
                   </div>
                 </TableCell>
               </TableRow>

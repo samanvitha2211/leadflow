@@ -248,9 +248,6 @@ export function LeadsTable() {
                         <Link href="/leads/new">
                           <Button variant="outline" className="border-white/10 text-white">Manual Entry</Button>
                         </Link>
-                        <Link href="/import">
-                          <Button className="btn-primary">Import CSV</Button>
-                        </Link>
                       </div>
                     )}
                   </div>

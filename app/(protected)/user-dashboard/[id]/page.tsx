@@ -15,6 +15,7 @@ interface UserLeadDetail {
   status: string;
   raw_text: string;
   suggested_reply?: string | null;
+  manager_reply?: string | null;
 }
 
 export default function UserDashboardDetailPage({
@@ -105,7 +106,7 @@ export default function UserDashboardDetailPage({
           </div>
 
           {/* Reply */}
-          {lead.suggested_reply && (lead.status === "in_progress" || lead.status === "closed") && (
+          {(lead.manager_reply) && (lead.status === "in_progress" || lead.status === "closed") && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -118,13 +119,13 @@ export default function UserDashboardDetailPage({
               </div>
               <div className="bg-primary/5 rounded-2xl p-6 border border-primary/20 relative">
                 <p className="text-slate-200 whitespace-pre-wrap leading-relaxed relative z-10">
-                  {lead.suggested_reply}
+                  {lead.manager_reply}
                 </p>
               </div>
             </motion.div>
           )}
 
-          {lead.status === "new" && (
+          {(!lead.manager_reply) && lead.status === "new" && (
             <div className="bg-white/5 rounded-2xl p-6 border border-white/5 text-center">
               <p className="text-slate-400">Our team is currently reviewing your inquiry. We will get back to you shortly.</p>
             </div>

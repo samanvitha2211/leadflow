@@ -24,18 +24,74 @@ const FALLBACK_RESULT: AIClassificationResult = {
   suggested_reply: "",
 };
 
-export async function classifyLead(rawText: string, leadId: string): Promise<AIClassificationResult> {
+export async function fetchSearchContext(queryText: string, companyName?: string): Promise<string | null> {
+  if (!process.env.TAVILY_API_KEY) {
+    console.warn("[Tavily] TAVILY_API_KEY is missing. Skipping web search.");
+    return null;
+  }
+
+  try {
+    // If we have a company name, we append it to the search to get company-specific answers
+    const searchQuery = companyName 
+      ? `"${companyName}" ${queryText}`
+      : queryText;
+
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: process.env.TAVILY_API_KEY,
+        query: searchQuery,
+        search_depth: "basic",
+        max_results: 3,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("[Tavily] Search failed with status:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      // Combine the snippets from the top results
+      const context = data.results.map((r: any) => r.content).join("\n\n");
+      console.log(`[Tavily] Successfully fetched web context for query.`);
+      return context;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`[Tavily] Error fetching context:`, error);
+    return null;
+  }
+}
+
+export async function classifyLead(rawText: string, leadId: string, companyName?: string): Promise<AIClassificationResult> {
   const providers = getAIProvidersChain();
   
   for (const provider of providers) {
     let attempts = 0;
     const maxRetries = 2; // 2 attempts per provider
 
+    // Fetch web context based on the user's specific query to help the AI draft an accurate reply
+    let enrichedText = rawText;
+    const searchContext = await fetchSearchContext(rawText, companyName);
+    
+    if (searchContext) {
+      enrichedText = `Message from user: ${rawText}\n\n--- Web Search Results (Use this information to directly answer the user's query in your suggested_reply) ---\n${searchContext}`;
+      if (companyName) {
+        enrichedText += `\n\nNote: The user is from the company "${companyName}". Tailor the response to their business if applicable.`;
+      }
+    } else if (companyName) {
+      enrichedText = `Message from user: ${rawText}\n\nNote: The user is from the company "${companyName}".`;
+    }
+
     while (attempts < maxRetries) {
       try {
         attempts++;
         console.log(`[AI Engine] Attempting classification for lead ${leadId} using ${provider.name} (Attempt ${attempts})...`);
-        const result = await provider.classify(rawText);
+        const result = await provider.classify(enrichedText);
         console.log(`[AI Engine] Success using ${provider.name}`);
         return result;
       } catch (error: any) {

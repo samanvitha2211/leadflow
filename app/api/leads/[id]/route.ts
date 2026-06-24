@@ -12,7 +12,7 @@ export async function GET(
 
     const { data: lead, error } = await supabase
       .from("leads")
-      .select("*, assigned_owner:users(name, email)")
+      .select("*, assigned_owner:users!leads_assigned_to_fkey(name, email)")
       .eq("id", id)
       .single();
 

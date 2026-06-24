@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
-  Upload,
   Activity,
   ListTodo,
   LogOut,
@@ -26,7 +25,6 @@ export function Sidebar({ userRole, userName }: SidebarProps) {
   let links = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "New Lead", href: "/leads/new", icon: ListTodo },
-    { name: "Import CSV", href: "/import", icon: Upload },
     { name: "Activity Log", href: "/activity", icon: Activity },
   ];
 

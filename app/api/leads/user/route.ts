@@ -1,20 +1,38 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import * as z from "zod";
 import { classifyLead } from "@/lib/ai";
 
-const publicLeadSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().optional(),
+const userContactSchema = z.object({
+  phone_number: z.string().optional(),
   company_name: z.string().optional(),
   message: z.string().min(10, "Message must be at least 10 characters"),
 });
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    
+    // Authenticate the user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get user's profile details for the lead name
+    const { data: profile } = await supabase
+      .from("users")
+      .select("name, email")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    }
+
     const body = await request.json();
-    const parsed = publicLeadSchema.safeParse(body);
+    const parsed = userContactSchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -23,46 +41,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, phone, company_name, message } = parsed.data;
-
-    // Use Admin Client since this is an unauthenticated route and we need to bypass RLS to insert
+    const { phone_number, company_name, message } = parsed.data;
+    
+    // We use the admin client to bypass RLS for inserting and updating AI columns
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 1. Insert lead
+    // 1. Insert lead linked to the submitter
     const { data: newLead, error: insertError } = await supabaseAdmin
       .from("leads")
       .insert({
-        name,
-        email,
-        phone_number: phone || null,
+        name: profile.name,
+        email: profile.email,
+        phone_number: phone_number || null,
         company_name: company_name || null,
         raw_text: message,
-        source: "manual", // or "public_form" if we update the schema check
+        source: "manual",
         status: "new",
+        submitter_id: user.id // Link this lead to the logged-in user
       })
       .select("id")
       .single();
 
     if (insertError || !newLead) {
-      console.error("[Public Lead Route] Failed to insert lead", insertError);
+      console.error("[User Lead Route] Failed to insert lead", insertError);
       return NextResponse.json({ error: "Failed to create lead" }, { status: 500 });
     }
 
     // 2. Log activity
     await supabaseAdmin.from("activity_log").insert({
       lead_id: newLead.id,
-      action: "Lead Created",
-      details: "Created via public contact form",
+      user_id: user.id, // Action performed by the user
+      action: "Inquiry Submitted",
+      details: "User submitted a new inquiry via dashboard",
     });
 
-    // 3. Trigger AI classification asynchronously in the background
-    (async () => {
-      try {
-        const classification = await classifyLead(message, newLead.id, company_name);
-        
+    // 3. Trigger AI classification directly without waiting
+    // Fire and forget
+    classifyLead(message, newLead.id, company_name)
+      .then(async (classification) => {
         const { error: updateError } = await supabaseAdmin
           .from("leads")
           .update({
@@ -81,14 +100,14 @@ export async function POST(request: Request) {
             details: `Category: ${classification.category}, Priority: ${classification.priority}`,
           });
         }
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error("AI Classification failed", err);
-      }
-    })();
+      });
 
     return NextResponse.json({ success: true, leadId: newLead.id }, { status: 201 });
   } catch (error) {
-    console.error("[Public Lead Route] Unexpected error", error);
+    console.error("[User Lead Route] Unexpected error", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

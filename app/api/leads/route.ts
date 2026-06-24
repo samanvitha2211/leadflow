@@ -109,7 +109,16 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("leads")
-      .select(`*, assigned_owner:users(name)`, { count: "exact" });
+      .select(`*, assigned_owner:users!leads_assigned_to_fkey(name)`, { count: "exact" });
+
+    // Enforce role-based access control
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single();
+      if (profile?.role === "user") {
+        query = query.eq("submitter_id", user.id);
+      }
+    }
 
     if (status) query = query.eq("status", status);
     if (priority) query = query.eq("current_priority", priority);
